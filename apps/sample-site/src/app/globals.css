@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Safe Container hints */
+[data-webexp-container="true"] {
+  position: relative;
+}
+
+[data-webexp-container="true"]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px dashed rgba(59, 130, 246, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+[data-webexp-container="true"]:hover::before {
+  opacity: 1;
+}
+
+/* Smooth transitions for better UX */
+.transition-smooth {
+  transition: all 0.2s ease-in-out;
+}

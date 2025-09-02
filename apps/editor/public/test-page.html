@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge Test Page</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+        }
+        
+        .hero p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 1.2em;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .feature {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .feature h3 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        
+        .feature p {
+            margin: 0;
+            color: #6c757d;
+            line-height: 1.5;
+        }
+        
+        .cta {
+            background: #28a745;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .cta:hover {
+            background: #218838;
+        }
+        
+        .list-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        
+        .list-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            cursor: move;
+        }
+        
+        .list-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .form-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Hero Section -->
+        <div class="hero" data-webexp-container="true">
+            <h1>Welcome to WebExp</h1>
+            <p>The secure canvas foundation for web experimentation</p>
+            <button class="cta" data-testid="hero-cta">Get Started</button>
+        </div>
+        
+        <!-- Features Grid -->
+        <div class="features" data-webexp-container="true">
+            <div class="feature">
+                <h3>Secure Selection</h3>
+                <p>Hover and select elements with confidence using our secure bridge protocol.</p>
+            </div>
+            <div class="feature">
+                <h3>Drag & Drop</h3>
+                <p>Move elements within safe containers with visual feedback and validation.</p>
+            </div>
+            <div class="feature">
+                <h3>Live Preview</h3>
+                <p>See changes in real-time as you edit elements and apply operations.</p>
+            </div>
+        </div>
+        
+        <!-- Draggable List -->
+        <div class="list-container" data-webexp-container="true">
+            <h3>Draggable Items</h3>
+            <div class="list-item draggable" data-testid="item-1">
+                <strong>Item 1</strong> - This item can be dragged
+            </div>
+            <div class="list-item draggable" data-testid="item-2">
+                <strong>Item 2</strong> - Another draggable item
+            </div>
+            <div class="list-item draggable" data-testid="item-3">
+                <strong>Item 3</strong> - Yet another draggable item
+            </div>
+        </div>
+        
+        <!-- Form Section -->
+        <div class="form-container" data-webexp-container="true">
+            <h3>Contact Form</h3>
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="Enter your email">
+            </div>
+            <div class="form-group">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" placeholder="Enter your message"></textarea>
+            </div>
+            <button class="cta" data-testid="submit-form">Send Message</button>
+        </div>
+    </div>
+    
+    <script>
+        // Add some interactivity to test the bridge
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handlers to test selection
+            document.querySelectorAll('[data-testid]').forEach(el => {
+                el.addEventListener('click', function(e) {
+                    console.log('Element clicked:', this.getAttribute('data-testid'));
+                });
+            });
+            
+            // Add form submission handler
+            const form = document.querySelector('.form-container');
+            const submitBtn = form.querySelector('[data-testid="submit-form"]');
+            submitBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert('Form submitted! (This is just a test)');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "@webexp/editor-bridge",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.umd.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format umd --global-name WebExpBridge --dts --sourcemap --minify",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@webexp/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "vitest": "^1.0.0",
+    "typescript": "^5.0.0"
+  }
+}

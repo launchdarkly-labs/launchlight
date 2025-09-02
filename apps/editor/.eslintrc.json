@@ -1,0 +1,3 @@
+{
+  "extends": ["@webexp/eslint-config"]
+}
