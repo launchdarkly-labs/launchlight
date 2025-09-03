@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify';
+import * as DOMPurifyNS from 'dompurify';
 
 /**
  * HTML sanitizer configuration for safe content insertion
@@ -20,24 +20,53 @@ export const sanitizerConfig = {
   // Allowed protocols for links and images
   ALLOWED_URI_REGEXP: /^(?:(?:https?|ftp|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
   
-  // Remove script tags and event handlers
+  // Remove script tags and event handlers explicitly
   FORBID_TAGS: ['script', 'object', 'embed', 'link', 'style', 'meta'],
-  FORBID_ATTR: ['onclick', 'onload', 'onerror', 'onmouseover', 'onfocus', 'onblur']
+  FORBID_ATTR: [/^on\w+/i]
 };
+
+function getPurifier() {
+  const win: any = typeof window !== 'undefined' ? window : (globalThis as any).window;
+  const maybeFactory = (DOMPurifyNS as any).default || (DOMPurifyNS as any);
+  if (typeof maybeFactory === 'function') {
+    try {
+      return maybeFactory(win);
+    } catch {
+      // fall through to basic sanitizer
+    }
+  }
+  return null;
+}
+
+function basicSanitize(html: string): string {
+  // Remove script tags entirely
+  let out = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  // Remove inline event handlers like onclick="..."
+  out = out.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  // Neutralize javascript: URIs
+  out = out.replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1="#"');
+  return out;
+}
 
 /**
  * Sanitize HTML content for safe insertion
  */
 export function sanitizeHTML(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: sanitizerConfig.ALLOWED_TAGS,
-    ALLOWED_ATTR: sanitizerConfig.ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP: sanitizerConfig.ALLOWED_URI_REGEXP,
-    FORBID_TAGS: sanitizerConfig.FORBID_TAGS,
-    FORBID_ATTR: sanitizerConfig.FORBID_ATTR,
-    KEEP_CONTENT: true,
-    USE_PROFILES: { html: true }
-  });
+  const purifier = getPurifier();
+  if (purifier && typeof purifier.sanitize === 'function') {
+    const clean = purifier.sanitize(html, {
+      ALLOWED_TAGS: sanitizerConfig.ALLOWED_TAGS,
+      ALLOWED_ATTR: sanitizerConfig.ALLOWED_ATTR,
+      ALLOWED_URI_REGEXP: sanitizerConfig.ALLOWED_URI_REGEXP,
+      FORBID_TAGS: sanitizerConfig.FORBID_TAGS,
+      FORBID_ATTR: sanitizerConfig.FORBID_ATTR as any,
+      KEEP_CONTENT: true,
+      USE_PROFILES: { html: true }
+    });
+    return typeof clean === 'string' ? clean : String(clean);
+  }
+  // Fallback
+  return basicSanitize(html);
 }
 
 /**

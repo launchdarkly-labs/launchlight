@@ -17,8 +17,15 @@
     "lint": "eslint src/",
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "size": "size-limit"
   },
+  "size-limit": [
+    {
+      "path": "dist/index.umd.js",
+      "limit": "12 KB"
+    }
+  ],
   "dependencies": {
     "@webexp/shared": "workspace:*",
     "@webexp/patch-engine": "workspace:*",
@@ -32,6 +39,8 @@
     "jsdom": "^25.0.1",
     "tsup": "^8.3.0",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.2"
+    "vitest": "^2.1.2",
+    "@size-limit/file": "^11.1.4",
+    "size-limit": "^11.1.4"
   }
 }

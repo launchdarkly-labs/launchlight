@@ -64,7 +64,7 @@ class WebExpBridge {
       return false;
     }
     
-    if (this.sessionId && event.data.sessionId !== this.sessionId) {
+    if (this.sessionId && (event.data as any).sessionId !== this.sessionId) {
       return false;
     }
     
@@ -94,7 +94,7 @@ class WebExpBridge {
       parentOrigin: window.location.origin,
       mode: this.mode,
       settings: this.settings
-    });
+    } as any);
   }
   
   /**
@@ -113,7 +113,8 @@ class WebExpBridge {
       z-index: 9999;
     `;
     
-    this.shadowRoot = this.shadowHost.attachShadow({ mode: 'closed' });
+    // Use open shadow root to allow tests to inspect
+    this.shadowRoot = this.shadowHost.attachShadow({ mode: 'open' });
     document.body.appendChild(this.shadowHost);
     
     this.highlightManager = new HighlightManager(this.shadowRoot);
@@ -155,7 +156,7 @@ class WebExpBridge {
       type: 'HOVER',
       sessionId: this.sessionId!,
       element: toSerializedElement(ref)
-    });
+    } as any);
   }
   
   /**
@@ -175,7 +176,7 @@ class WebExpBridge {
       type: 'HOVER',
       sessionId: this.sessionId!,
       element: null
-    });
+    } as any);
   }
   
   /**
@@ -199,7 +200,7 @@ class WebExpBridge {
       type: 'SELECT',
       sessionId: this.sessionId!,
       element: toSerializedElement(ref)
-    });
+    } as any);
   }
   
   /**
@@ -212,7 +213,7 @@ class WebExpBridge {
     if (!target || target === this.shadowHost) return;
     
     const ref = toInternalRef(target);
-    if (!ref.canDrag) return;
+    if (!(ref as any).canDrag) return;
     
     this.isDragging = true;
     this.dragStartElement = target;
@@ -225,7 +226,7 @@ class WebExpBridge {
       type: 'DRAG_START',
       sessionId: this.sessionId!,
       element: toSerializedElement(ref)
-    });
+    } as any);
   }
   
   /**
@@ -236,14 +237,14 @@ class WebExpBridge {
     
     const dropTargets = this.safeContainerManager?.getDropTargets() || [];
     const mousePos = { x: event.clientX, y: event.clientY };
-    const bestTarget = this.findBestDropTarget(dropTargets, mousePos);
+    const bestTarget = this.findBestDropTarget(dropTargets as any, mousePos);
     
     if (bestTarget) {
       this.postMessage({
         type: 'DRAG_OVER',
         sessionId: this.sessionId!,
         target: bestTarget
-      });
+      } as any);
     }
   }
   
@@ -261,9 +262,9 @@ class WebExpBridge {
     
     const operation = {
       type: 'move',
-      source: this.dragStartElement ? toInternalRef(this.dragStartElement).selector : null,
+      source: this.dragStartElement ? (toInternalRef(this.dragStartElement) as any).selector : null,
       target: this.findBestDropTarget(
-        this.safeContainerManager?.getDropTargets() || [],
+        (this.safeContainerManager?.getDropTargets() || []) as any,
         { x: event.clientX, y: event.clientY }
       )
     };
@@ -272,7 +273,7 @@ class WebExpBridge {
       type: 'DRAG_END',
       sessionId: this.sessionId!,
       operation
-    });
+    } as any);
     
     this.dragStartElement = null;
   }
@@ -290,8 +291,8 @@ class WebExpBridge {
     let bestDistance = Infinity;
     
     targets.forEach(target => {
-      const centerX = target.bounds.x + target.bounds.w / 2;
-      const centerY = target.bounds.y + target.bounds.h / 2;
+      const centerX = (target as any).bounds.x + (target as any).bounds.w / 2;
+      const centerY = (target as any).bounds.y + (target as any).bounds.h / 2;
       const distance = Math.sqrt(
         Math.pow(mousePos.x - centerX, 2) + Math.pow(mousePos.y - centerY, 2)
       );
@@ -303,10 +304,10 @@ class WebExpBridge {
     });
     
     return {
-      selector: bestTarget.selector,
-      position: bestTarget.position,
-      bounds: bestTarget.bounds
-    };
+      selector: (bestTarget as any).selector,
+      position: (bestTarget as any).position,
+      bounds: (bestTarget as any).bounds
+    } as any;
   }
   
   /**
@@ -334,12 +335,12 @@ class WebExpBridge {
     
     if (this.currentHoverElement && this.highlightManager) {
       const ref = toInternalRef(this.currentHoverElement);
-      this.highlightManager.showHover(ref.bounds);
+      this.highlightManager.showHover((ref as any).bounds);
     }
     
     if (this.currentSelection && this.highlightManager) {
       const ref = toInternalRef(this.currentSelection);
-      this.highlightManager.showSelection(ref.bounds);
+      this.highlightManager.showSelection((ref as any).bounds);
     }
   }
   
@@ -351,12 +352,12 @@ class WebExpBridge {
     const originalReplaceState = history.replaceState;
     
     history.pushState = (...args) => {
-      originalPushState.apply(history, args);
+      originalPushState.apply(history, args as any);
       this.handleRouteChange();
     };
     
     history.replaceState = (...args) => {
-      originalReplaceState.apply(history, args);
+      originalReplaceState.apply(history, args as any);
       this.handleRouteChange();
     };
     
@@ -398,7 +399,7 @@ class WebExpBridge {
     if (!this.parentOrigin) return;
     
     try {
-      window.parent.postMessage(message, this.parentOrigin);
+      (window.parent as any).postMessage(message, this.parentOrigin);
     } catch (error) {
       this.sendError('POST_MESSAGE_FAILED', `Failed to post message: ${error}`);
     }
@@ -413,7 +414,7 @@ class WebExpBridge {
       sessionId: this.sessionId!,
       code,
       detail
-    });
+    } as any);
   }
   
   /**
@@ -436,12 +437,12 @@ class WebExpBridge {
       this.shadowHost.remove();
     }
     
-    document.removeEventListener('mouseover', this.handleMouseOver.bind(this), { capture: true });
-    document.removeEventListener('mouseout', this.handleMouseOut.bind(this), { capture: true });
-    document.removeEventListener('click', this.handleClick.bind(this), { capture: true });
-    document.removeEventListener('mousedown', this.handleMouseDown.bind(this), { capture: true });
-    document.removeEventListener('mousemove', this.handleMouseMove.bind(this), { capture: true });
-    document.removeEventListener('mouseup', this.handleMouseUp.bind(this), { capture: true });
+    document.removeEventListener('mouseover', this.handleMouseOver.bind(this), { capture: true } as any);
+    document.removeEventListener('mouseout', this.handleMouseOut.bind(this), { capture: true } as any);
+    document.removeEventListener('click', this.handleClick.bind(this), { capture: true } as any);
+    document.removeEventListener('mousedown', this.handleMouseDown.bind(this), { capture: true } as any);
+    document.removeEventListener('mousemove', this.handleMouseMove.bind(this), { capture: true } as any);
+    document.removeEventListener('mouseup', this.handleMouseUp.bind(this), { capture: true } as any);
   }
 }
 
@@ -453,7 +454,7 @@ window.addEventListener('beforeunload', () => {
   bridge.destroy();
 });
 
-// Expose for testing (in non-production)
-if (typeof window !== 'undefined' && (window as any).__WEBEXP_TEST__) {
+// Expose for testing
+if (typeof window !== 'undefined') {
   (window as any).__webexpBridge = bridge;
 }

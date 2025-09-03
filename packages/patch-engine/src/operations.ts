@@ -321,9 +321,12 @@ function applyAppendTo(op: { selector: string; containerSelector: string }): OpR
 }
 
 function applyDuplicate(op: { selector: string; mode?: 'deep' | 'shallow' }): OpResult {
-  const elements = safeResolve(op.selector);
+  // Only operate on non-duplicate originals for idempotence
+  const all = safeResolve(op.selector);
+  const elements = all.filter(el => el.getAttribute('data-webexp-duplicate') !== 'true' && el.getAttribute('data-webexp-duplicated') !== 'true');
   if (elements.length === 0) {
-    return { success: false, error: 'No elements found', matchCount: 0 };
+    // No-op is a success for idempotence
+    return { success: true, matchCount: 0, modified: false };
   }
 
   const mode = op.mode || 'deep';
@@ -336,12 +339,23 @@ function applyDuplicate(op: { selector: string; mode?: 'deep' | 'shallow' }): Op
       return;
     }
 
+    // Idempotency: if any sibling already marked as webexp duplicate exists for this element, skip
+    const next = element.nextElementSibling;
+    if (next && next instanceof Element && next.getAttribute('data-webexp-duplicate') === 'true') {
+      return;
+    }
+
     // Clone the element
     const clone = element.cloneNode(mode === 'deep') as Element;
-    
+
     // Remove any IDs from the clone to avoid duplicates
     removeIds(clone);
-    
+
+    // Mark as WebExp duplicate for idempotence
+    clone.setAttribute('data-webexp-duplicate', 'true');
+    // Mark original as having been duplicated to prevent repeated action on reapply
+    (element as Element).setAttribute('data-webexp-duplicated', 'true');
+
     // Insert the clone after the original
     parent.insertBefore(clone, element.nextElementSibling);
     duplicatedCount++;
@@ -356,7 +370,7 @@ function applyDuplicate(op: { selector: string; mode?: 'deep' | 'shallow' }): Op
 
 function removeIds(element: Element): void {
   // Remove ID from the element itself
-  if (element.id) {
+  if ((element as HTMLElement).id) {
     element.removeAttribute('id');
   }
   

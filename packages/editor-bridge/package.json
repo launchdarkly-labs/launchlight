@@ -9,7 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@webexp/shared": "workspace:*"
+    "@webexp/shared": "workspace:*",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

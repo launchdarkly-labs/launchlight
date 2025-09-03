@@ -1,5 +1,15 @@
 import type { OpResult } from './types.js';
 
+let resolverRoot: Document | Element = typeof document !== 'undefined' ? document : (undefined as any);
+
+export function setResolverRoot(root: Document | Element | null | undefined): () => void {
+  const previous = resolverRoot;
+  resolverRoot = (root as any) || (typeof document !== 'undefined' ? document : (undefined as any));
+  return () => {
+    resolverRoot = typeof document !== 'undefined' ? document : (undefined as any);
+  };
+}
+
 /**
  * Resolve elements by selector with diagnostics
  */
@@ -13,7 +23,8 @@ export function resolve(selector: string): {
   };
 } {
   try {
-    const elements = Array.from(document.querySelectorAll(selector));
+    const root = resolverRoot as Document | Element;
+    const elements = Array.from(root.querySelectorAll(selector));
     return {
       elements,
       diagnostics: {
@@ -87,7 +98,7 @@ export function validateSelector(selector: string): OpResult {
  * Check if element exists in DOM
  */
 export function elementExists(element: Element): boolean {
-  return document.contains(element);
+  return typeof document !== 'undefined' ? document.contains(element) : true;
 }
 
 /**
@@ -127,7 +138,7 @@ export function validateMove(source: Element, target: Element): {
   }
   
   // Check if target is document body or html
-  if (target === document.body || target === document.documentElement) {
+  if (target === (resolverRoot as any).body || target === (resolverRoot as any).documentElement) {
     return { valid: false, reason: 'Cannot move element to document body or html' };
   }
   
@@ -144,6 +155,14 @@ export function validateMove(source: Element, target: Element): {
   if (ariaViolation) {
     return { valid: false, reason: ariaViolation };
   }
+
+  // Basic heading level guardrail: avoid creating heading gaps (e.g., H3 without an H2)
+  const headingLevel = getHeadingLevel(source);
+  if (headingLevel && headingLevel > 1) {
+    if (!containerHasHeadingLevel(target, headingLevel - 1)) {
+      return { valid: false, reason: `Moving H${headingLevel} without preceding H${headingLevel - 1} in target container` };
+    }
+  }
   
   return { valid: true };
 }
@@ -155,9 +174,9 @@ function isFormControl(element: Element): boolean {
 
 function findAssociatedLabel(element: Element): Element | null {
   // Check for explicit label association
-  const id = element.id;
+  const id = (element as HTMLElement).id;
   if (id) {
-    const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+    const label = (resolverRoot as Document | Element).querySelector(`label[for="${CSS.escape(id)}"]`);
     if (label) return label;
   }
   
@@ -177,20 +196,33 @@ function checkAriaViolation(source: Element, target: Element): string | null {
   // Check if moving would break aria-labelledby relationships
   const labelledBy = source.getAttribute('aria-labelledby');
   if (labelledBy) {
-    const labelElement = document.getElementById(labelledBy);
+    const labelElement = (resolverRoot as Document | Element).querySelector(`#${CSS.escape(labelledBy)}`);
     if (labelElement && !target.contains(labelElement)) {
       return 'Moving element would break aria-labelledby relationship';
     }
   }
   
   // Check if source is a label for another element
-  const sourceId = source.id;
+  const sourceId = (source as HTMLElement).id;
   if (sourceId) {
-    const labeledElement = document.querySelector(`[aria-labelledby~="${CSS.escape(sourceId)}"]`);
+    const labeledElement = (resolverRoot as Document | Element).querySelector(`[aria-labelledby~="${CSS.escape(sourceId)}"]`);
     if (labeledElement && !target.contains(labeledElement)) {
       return 'Moving label would break aria-labelledby relationship';
     }
   }
   
   return null;
+}
+
+function getHeadingLevel(element: Element): number | null {
+  const tag = element.tagName.toLowerCase();
+  if (tag.length === 2 && tag[0] === 'h') {
+    const n = Number(tag[1]);
+    if (n >= 1 && n <= 6) return n;
+  }
+  return null;
+}
+
+function containerHasHeadingLevel(container: Element, level: number): boolean {
+  return !!container.querySelector(`h${level}`);
 }

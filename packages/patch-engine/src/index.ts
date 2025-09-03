@@ -3,6 +3,7 @@ import { validatePayload } from './schemas.js';
 import { applyOperation } from './operations.js';
 import { applyMask, removeMask, applyMaskWithReveal } from './mask.js';
 import { enableSpaMode, disableSpaMode, isSpaMode, reapplyPatches, updateSpaPayload } from './spa.js';
+import { setResolverRoot } from './resolver.js';
 
 export * from './types.js';
 export * from './schemas.js';
@@ -17,6 +18,32 @@ export interface ApplyOptions {
   spa?: boolean;
   validateFirst?: boolean;
   onOpResult?: (op: WebExpOp, result: OpResult) => void;
+}
+
+/**
+ * Apply operations to a specific root (Document or Element)
+ */
+export function applyOperations(root: Document | Element, ops: WebExpOp[], onOpResult?: (op: WebExpOp, result: OpResult) => void): {
+  success: boolean;
+  results: OpResult[];
+  errors: string[];
+} {
+  const restore = setResolverRoot(root);
+  const results: OpResult[] = [];
+  const errors: string[] = [];
+  try {
+    for (const op of ops) {
+      const result = applyOperation(op);
+      results.push(result);
+      if (!result.success) {
+        errors.push(`Operation ${op.op} failed: ${result.error}`);
+      }
+      if (onOpResult) onOpResult(op, result);
+    }
+  } finally {
+    restore();
+  }
+  return { success: errors.length === 0, results, errors };
 }
 
 /**
