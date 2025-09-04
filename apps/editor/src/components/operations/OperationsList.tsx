@@ -16,7 +16,8 @@ import {
   Trash2, 
   AlertTriangle,
   CheckCircle,
-  Info
+  Info,
+  Rocket
 } from 'lucide-react';
 
 export function OperationsList() {
@@ -30,7 +31,9 @@ export function OperationsList() {
     clearOperations,
     validateCurrentPayload,
     removeOperation,
-    reorderOperations
+    reorderOperations,
+    publishExperiment,
+    isPublishing
   } = useExperimentStore();
 
   const handleValidate = () => {
@@ -83,6 +86,15 @@ export function OperationsList() {
             >
               <Trash2 className="w-4 h-4" />
             </Button>
+            <Button
+              size="sm"
+              onClick={publishExperiment}
+              disabled={isPublishing || currentPayload.ops.length === 0 || hasErrors}
+              title="Publish to LaunchDarkly"
+            >
+              <Rocket className="w-4 h-4 mr-2" />
+              {isPublishing ? 'Publishing…' : 'Publish'}
+            </Button>
           </div>
         </div>
 
@@ -94,7 +106,7 @@ export function OperationsList() {
             </span>
             {validationSummary.sizeInfo && (
               <Badge variant="outline" className="text-xs">
-                {Math.ceil(validationSummary.sizeInfo.gzippedSize / 1024)}KB
+                {Math.ceil((validationSummary.sizeInfo.gzippedSize as number) / 1024)}KB
               </Badge>
             )}
           </div>

@@ -20,7 +20,8 @@ import {
   Image,
   Link,
   Plus,
-  Minus
+  Minus,
+  AlertTriangle
 } from 'lucide-react';
 import type { 
   SerializedElement
@@ -47,7 +48,6 @@ export function ElementInspector({
   const [newImageSrc, setNewImageSrc] = useState('');
   const [newImageAlt, setNewImageAlt] = useState('');
 
-  // Update form values when selected element changes
   useEffect(() => {
     if (selectedElement) {
       setTextContent(selectedElement.metadata.textContent);
@@ -74,14 +74,11 @@ export function ElementInspector({
 
   const handleTextReplace = () => {
     if (textContent.trim()) {
-      // Add to preview store for live preview
       addOp({
         type: 'text',
         selector: selectedElement.selector,
         value: textContent.trim()
       });
-      
-      // Also add to main operations
       onOperationAdd({
         op: 'textReplace',
         selector: selectedElement.selector,
@@ -92,101 +89,56 @@ export function ElementInspector({
 
   const handleClassAdd = () => {
     if (newClassName.trim()) {
-      // Add to preview store for live preview
-      addOp({
-        type: 'class',
-        selector: selectedElement.selector,
-        value: newClassName.trim()
-      });
-      
-      // Also add to main operations
-      onOperationAdd({
-        op: 'classAdd',
-        selector: selectedElement.selector,
-        value: newClassName.trim()
-      });
+      addOp({ type: 'class', selector: selectedElement.selector, value: newClassName.trim() });
+      onOperationAdd({ op: 'classAdd', selector: selectedElement.selector, value: newClassName.trim() });
       setNewClassName('');
     }
   };
 
   const handleClassRemove = (className: string) => {
-    // Add to preview store for live preview
-    addOp({
-      type: 'class',
-      selector: selectedElement.selector,
-      value: className
-    });
-    
-    // Also add to main operations
-    onOperationAdd({
-      op: 'classRemove',
-      selector: selectedElement.selector,
-      value: className
-    });
+    addOp({ type: 'class', selector: selectedElement.selector, value: className });
+    onOperationAdd({ op: 'classRemove', selector: selectedElement.selector, value: className });
   };
 
   const handleClassToggle = (className: string) => {
-    onOperationAdd({
-      op: 'classToggle',
-      selector: selectedElement.selector,
-      value: className
-    });
+    onOperationAdd({ op: 'classToggle', selector: selectedElement.selector, value: className });
   };
 
   const handleAttributeSet = () => {
     if (newAttribute.name.trim()) {
-      onOperationAdd({
-        op: 'attrSet',
-        selector: selectedElement.selector,
-        name: newAttribute.name.trim(),
-        value: newAttribute.value
-      });
+      onOperationAdd({ op: 'attrSet', selector: selectedElement.selector, name: newAttribute.name.trim(), value: newAttribute.value });
       setNewAttribute({ name: '', value: '' });
     }
   };
 
   const handleStyleSet = () => {
     if (newStyle.property.trim() && newStyle.value.trim()) {
-      onOperationAdd({
-        op: 'styleSet',
-        selector: selectedElement.selector,
-        name: newStyle.property.trim(),
-        value: newStyle.value.trim()
-      });
+      onOperationAdd({ op: 'styleSet', selector: selectedElement.selector, name: newStyle.property.trim(), value: newStyle.value.trim() });
       setNewStyle({ property: '', value: '' });
     }
   };
 
   const handleImageSwap = () => {
     if (newImageSrc.trim()) {
-      onOperationAdd({
-        op: 'imgSwap',
-        selector: selectedElement.selector,
-        src: newImageSrc.trim(),
-        alt: newImageAlt.trim() || undefined
-      });
+      onOperationAdd({ op: 'imgSwap', selector: selectedElement.selector, src: newImageSrc.trim(), alt: newImageAlt.trim() || undefined });
     }
   };
 
   const handleDuplicate = () => {
-    onOperationAdd({
-      op: 'duplicate',
-      selector: selectedElement.selector,
-      mode: 'deep'
-    });
+    onOperationAdd({ op: 'duplicate', selector: selectedElement.selector, mode: 'deep' });
   };
 
   const handleRemove = () => {
-    onOperationAdd({
-      op: 'remove',
-      selector: selectedElement.selector
-    });
+    onOperationAdd({ op: 'remove', selector: selectedElement.selector });
   };
 
   const isImage = selectedElement.metadata.tagName === 'img';
   const isText = ['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button'].includes(
     selectedElement.metadata.tagName
   );
+
+  const selectorUnstable = !selectedElement.selectorUnique;
+  const outsideSafeContainer = !selectedElement.containerSafe && !selectedElement.nearestContainerSelector;
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
@@ -198,13 +150,25 @@ export function ElementInspector({
               {selectedElement.metadata.tagName.toUpperCase()}
             </CardTitle>
             <div className="flex items-center gap-1">
-              {selectedElement.isContainer && <Badge variant="secondary">Container</Badge>}
+              {selectedElement.containerSafe && <Badge variant="secondary">Container</Badge>}
               {selectedElement.canDrag && <Badge variant="outline">Draggable</Badge>}
+              <Badge variant={selectedElement.selectorUnique ? 'default' : 'destructive'}>
+                {selectedElement.selectorUnique ? 'Selector unique' : 'Selector not unique'}
+              </Badge>
             </div>
           </div>
           <CardDescription className="font-mono text-xs">
             {selectedElement.selector}
           </CardDescription>
+          {(selectorUnstable || outsideSafeContainer) && (
+            <div className="mt-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2 flex items-start gap-2">
+              <AlertTriangle className="w-3 h-3 mt-0.5" />
+              <div>
+                {!selectedElement.selectorUnique && <div>Selector is not unique. Consider adding a data-* attribute or more specific selector.</div>}
+                {outsideSafeContainer && <div>Element is outside a marked safe container. Moves may be restricted to avoid layout issues.</div>}
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="pt-0">
           <div className="space-y-2">
@@ -506,6 +470,8 @@ export function ElementInspector({
                   variant="outline"
                   size="sm"
                   className="w-full"
+                  disabled={outsideSafeContainer}
+                  title={outsideSafeContainer ? 'Duplicate disabled outside safe containers' : 'Duplicate element'}
                 >
                   <Copy className="w-4 h-4 mr-2" />
                   Duplicate Element
@@ -537,7 +503,7 @@ export function ElementInspector({
                   <div>
                     <Label className="text-muted-foreground">Type</Label>
                     <div>
-                      {selectedElement.isContainer ? 'Container' : 'Element'}
+                      {selectedElement.containerSafe ? 'Container' : 'Element'}
                     </div>
                   </div>
                   <div>
@@ -546,7 +512,7 @@ export function ElementInspector({
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Drop Target</Label>
-                    <div>{selectedElement.isDropTarget ? 'Yes' : 'No'}</div>
+                    <div>{selectedElement.nearestContainerSelector ? 'Yes' : 'No'}</div>
                   </div>
                 </div>
                 <div>

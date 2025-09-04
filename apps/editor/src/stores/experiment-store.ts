@@ -11,6 +11,7 @@ import type {
 import { 
   validatePayload
 } from '@webexp/patch-engine';
+import { toast } from '@/hooks/use-toast';
 
 interface ExperimentHistory {
   past: WebExpPayloadV1[];
@@ -109,6 +110,12 @@ const redoHistory = (history: ExperimentHistory): ExperimentHistory => {
     future: newFuture
   };
 };
+
+function getProjectEnvKeys() {
+  const projectKey = process.env.NEXT_PUBLIC_LD_PROJECT_KEY || '';
+  const envKey = process.env.NEXT_PUBLIC_LD_ENV_KEY || '';
+  return { projectKey, envKey };
+}
 
 export const useExperimentStore = create<ExperimentState>()(
   devtools(
@@ -213,8 +220,7 @@ export const useExperimentStore = create<ExperimentState>()(
 
         toggleOperation: (index) => {
           const state = get();
-          // For now, we'll implement this by adding a disabled property to metadata
-          // This is a UI-only feature that doesn't affect the actual payload
+          // UI-only placeholder
           console.log(`Toggling operation ${index} (UI only)`);
         },
 
@@ -345,10 +351,8 @@ export const useExperimentStore = create<ExperimentState>()(
         loadExperiment: async (flagKey) => {
           console.log(`Loading experiment: ${flagKey}`);
           
-          // Mock loading delay
           await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // Mock data - in real implementation, this would call the API
           const mockPayload: WebExpPayloadV1 = {
             version: 1,
             ops: [],
@@ -372,7 +376,6 @@ export const useExperimentStore = create<ExperimentState>()(
           const state = get();
           console.log('Saving experiment:', state.currentPayload);
           
-          // Mock save delay
           await new Promise(resolve => setTimeout(resolve, 500));
           
           set({ isDirty: false });
@@ -380,16 +383,47 @@ export const useExperimentStore = create<ExperimentState>()(
 
         publishExperiment: async () => {
           const state = get();
+          const { flagKey, selectedVariation, currentPayload } = state;
           
+          if (!flagKey || !selectedVariation) {
+            toast({ title: 'Missing configuration', description: 'Select a flag and variation before publishing.' });
+            return;
+          }
+          
+          const validation = get().validateCurrentPayload();
+          if (!validation.valid) {
+            toast({ title: 'Invalid payload', description: 'Fix validation errors before publishing.' });
+            return;
+          }
+
+          const { projectKey, envKey } = getProjectEnvKeys();
+          if (!projectKey || !envKey) {
+            toast({ title: 'Missing project/environment', description: 'Set NEXT_PUBLIC_LD_PROJECT_KEY and NEXT_PUBLIC_LD_ENV_KEY.' });
+            return;
+          }
+
           set({ isPublishing: true });
-          
           try {
-            console.log('Publishing experiment:', state.currentPayload);
-            
-            // Mock publish delay
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
+            const res = await fetch(`/api/flags/${encodeURIComponent(projectKey)}/${encodeURIComponent(envKey)}/${encodeURIComponent(flagKey)}/publish`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                variationKey: selectedVariation,
+                payload: { type: 'webexp', ops: currentPayload.ops },
+                meta: { note: state.flagName || '' },
+                actor: 'editor-user'
+              })
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(json?.detail || 'Publish failed');
+            }
+
+            toast({ title: 'Published', description: `Mode: ${json.mode || 'inline'}${json.checksum ? ` • checksum ${json.checksum}` : ''}` });
             set({ isDirty: false });
+          } catch (e: any) {
+            console.error('Publish failed:', e);
+            toast({ title: 'Publish error', description: e?.message || 'Unknown error' });
           } finally {
             set({ isPublishing: false });
           }

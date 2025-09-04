@@ -1,0 +1,38 @@
+name: E2E
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.1
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm -w build
+
+      - name: Start sample site and editor
+        run: |
+          pnpm --filter @webexp/sample-site start &
+          pnpm --filter @webexp/editor start &
+          sleep 10
+
+      - name: Run Playwright (stub)
+        run: echo "Add Playwright tests in packages/e2e" && exit 0

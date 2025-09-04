@@ -16,12 +16,23 @@ const Body = z.object({
   workspaceId: z.string().min(1).optional()
 });
 
-export async function POST(req: NextRequest, { params }: { params: { projectKey: string, envKey: string, flagKey: string } }) {
-  // Basic same-origin check (Next automatically handles CORS for same-origin)
+function verifyCsrf(req: NextRequest): boolean {
+  // Same-origin short-circuit
   const origin = req.headers.get('origin');
   const host = req.headers.get('host');
-  if (origin && host && !origin.includes(host)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (origin && host && origin.includes(host)) return true;
+
+  // Double-submit cookie (XSRF-TOKEN header matches cookie value)
+  const header = req.headers.get('x-xsrf-token') || '';
+  const cookie = req.cookies.get('XSRF-TOKEN')?.value || '';
+  if (header && cookie && header === cookie) return true;
+
+  return false;
+}
+
+export async function POST(req: NextRequest, { params }: { params: { projectKey: string, envKey: string, flagKey: string } }) {
+  if (!verifyCsrf(req)) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
   // Ensure server-only token exists (publisher will read LD_API_TOKEN/LD_PROJECT_KEY/LD_ENV_KEY)

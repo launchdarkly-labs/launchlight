@@ -1,7 +1,7 @@
-import type { WebExpPayloadV1, WebExpGoal } from '@webexp/patch-engine';
+import type { WebExpPayloadV1, WebExpGoal, WebExpOp } from '@webexp/patch-engine';
 import type { AutoIdOptions } from '@webexp/shared';
 import { createEmptyPayload } from '@webexp/shared';
-import { applyPayload, enableSpaMode, cleanupPatchEngine } from '@webexp/patch-engine';
+import { applyPayload, enableSpaMode, cleanupPatchEngine, applyMask, removeMask } from '@webexp/patch-engine';
 import { createLDClient, createAnonymousContext, createUserContext, type LDClientConfig, type WebExpClient } from './ld-client.js';
 import { createGoalTracker, type GoalTracker } from './goals.js';
 import { initializeAutoId, getAnonymousId, resetAnonymousId, getAutoIdDiagnostics } from './auto-id.js';
@@ -20,6 +20,7 @@ export interface InjectorConfig extends LDClientConfig {
   onReady?: () => void;
   onError?: (error: any) => void;
   relyOnLDEvaluationExposure?: boolean;
+  debug?: boolean;
 }
 
 export interface WebExpInjector {
@@ -32,6 +33,23 @@ export interface WebExpInjector {
 
 let globalInjector: WebExpInjector | null = null;
 
+function collectTargetSelectors(ops: WebExpOp[]): string[] {
+  const selectors = new Set<string>();
+  for (const op of ops) {
+    // Discriminated by op.op
+    // @ts-ignore
+    const kind = op.op as string;
+    if (!kind) continue;
+    // @ts-ignore
+    if (op.selector) selectors.add(op.selector as string);
+    // @ts-ignore
+    if (op.targetSelector) selectors.add(op.targetSelector as string);
+    // @ts-ignore
+    if (op.containerSelector) selectors.add(op.containerSelector as string);
+  }
+  return Array.from(selectors);
+}
+
 /**
  * Initialize the web experiment injector
  */
@@ -43,6 +61,7 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
     onReady,
     onError,
     relyOnLDEvaluationExposure = true,
+    debug = false,
     ...ldConfig
   } = config;
   
@@ -58,7 +77,6 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
     // Initialize auto-ID if configured
     let contextWithAutoId = ldConfig.context;
     if (autoId?.enabled === false) {
-      // Explicitly disabled: still record the choice for diagnostics/tests
       initializeAutoId({ enabled: false });
       if (!ldConfig.context) {
         contextWithAutoId = undefined as any;
@@ -68,7 +86,6 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
         const autoIdManager = initializeAutoId(autoId || {});
         const anonymousId = await autoIdManager.getOrCreateId();
         
-        // Use auto-ID if no explicit context key is provided
         if (anonymousId && (!ldConfig.context?.key)) {
           contextWithAutoId = {
             kind: 'user',
@@ -76,9 +93,8 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
             anonymous: true,
             ...ldConfig.context
           };
-          console.info(`[WebExp] Using auto-generated anonymous ID: ${anonymousId}`);
+          if (debug) console.info(`[WebExp] Using auto-generated anonymous ID: ${anonymousId}`);
         } else if (!anonymousId && !ldConfig.context) {
-          // No auto-id and no provided context → use undefined to satisfy tests expecting fallback
           contextWithAutoId = undefined as any;
         }
       } catch (autoIdError) {
@@ -86,14 +102,12 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
         if (!ldConfig.context) {
           contextWithAutoId = undefined as any;
         }
-        // Continue without failing init
       }
     }
     
     // Initialize LaunchDarkly client with potentially auto-generated context
     client = await createLDClient({
       ...ldConfig,
-      // Pass undefined if no context to satisfy tests expecting LD.initialize called with undefined
       context: (contextWithAutoId as any) ?? undefined
     });
     
@@ -102,14 +116,24 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
     
     // Apply initial payload
     if (payload.ops.length > 0) {
+      const maskSelectors = collectTargetSelectors(payload.ops as any);
+      if (maskSelectors.length > 0) {
+        try {
+          applyMask({ selectors: maskSelectors });
+        } catch {}
+      }
       const result = applyPayload(payload, { spa: spaMode });
       if (!result.success) {
         console.warn('[WebExp] Initial payload application had errors:', result.errors);
       }
+      try { removeMask(); } catch {}
+      
+      if (debug) console.info('[WebExp] Applied initial payload', { flagKey, ops: payload.ops.length });
       
       // Enable SPA mode if requested
       if (spaMode) {
         enableSpaMode(payload);
+        if (debug) console.info('[WebExp] SPA mode enabled');
       }
       
       // Bind goals if present
@@ -120,20 +144,12 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
       }
     }
     
-    console.info(`[WebExp] Injector initialized for flag: ${flagKey}`);
-    
-    // Call ready callback
-    if (onReady) {
-      onReady();
-    }
+    if (debug) console.info(`[WebExp] Injector initialized for flag: ${flagKey}`);
+    if (onReady) onReady();
     
   } catch (error) {
     console.error('[WebExp] Injector initialization failed:', error);
-    
-    if (onError) {
-      onError(error);
-    }
-    
+    if (onError) onError(error);
     throw error;
   }
   
@@ -142,28 +158,26 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
       const { relyOnLDEvaluationExposure: relyOnLD = relyOnLDEvaluationExposure } = options;
       
       try {
-        // Apply the payload
+        const maskSelectors = collectTargetSelectors(payload.ops as any);
+        if (maskSelectors.length > 0) {
+          try { applyMask({ selectors: maskSelectors }); } catch {}
+        }
         const result = applyPayload(payload, { spa: spaMode });
-        
         if (!result.success) {
           console.warn('[WebExp] Payload application had errors:', result.errors);
         }
+        try { removeMask(); } catch {}
         
-        // Bind goals
+        if (debug) console.info('[WebExp] Applied variation JSON', { ops: payload.ops.length });
+        
         if (payload.goals && payload.goals.length > 0) {
           goalTracker.bind(payload.goals, (eventKey, data) => {
-            if (client) {
-              client.track(eventKey, data);
-            }
+            if (client) client.track(eventKey, data);
           });
         }
         
-        // Track exposure if not relying on LD evaluation events
         if (!relyOnLD && client) {
-          client.track('webexp_exposure', {
-            flagKey,
-            variation: 'applied'
-          });
+          client.track('webexp_exposure', { flagKey, variation: 'applied' });
         }
         
       } catch (error) {
@@ -191,19 +205,13 @@ export async function init(config: InjectorConfig): Promise<WebExpInjector> {
     },
     
     destroy(): void {
-      // Cleanup goals
       goalTracker.unbind();
-      
-      // Cleanup patch engine
       cleanupPatchEngine();
-      
-      // Close LD client
       if (client) {
         client.close();
         client = null;
       }
-      
-      console.info('[WebExp] Injector destroyed');
+      if (debug) console.info('[WebExp] Injector destroyed');
     }
   };
   
