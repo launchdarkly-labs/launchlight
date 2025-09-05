@@ -64,7 +64,13 @@ export function PreviewCanvas({
   // Handle iframe load
   const handleIframeLoad = useCallback(() => {
     setIsLoading(false);
-    console.log('[Preview] Iframe loaded:', iframeRef.current?.contentWindow?.location.href);
+    try {
+      const href = iframeRef.current?.contentWindow?.location.href;
+      console.log('[Preview] Iframe loaded:', href);
+    } catch (error) {
+      // Cross-origin access blocked - this is expected for external sites
+      console.log('[Preview] Iframe loaded (cross-origin, href access blocked)');
+    }
   }, []);
 
   // Refresh iframe
